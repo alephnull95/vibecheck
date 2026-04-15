@@ -1,13 +1,11 @@
-version: "3.9"
+version: '3.8'
 
 services:
-  # ──────────────────────────────────────────────
-  # PostgreSQL + pgvector
-  # ──────────────────────────────────────────────
-  db:
-    image: pgvector/pgvector:pg16
-    container_name: vibecheck-db
-    restart: unless-stopped
+  vibecheck:
+    build: .
+    container_name: vibecheck
+    ports:
+      - "5050:5000"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
