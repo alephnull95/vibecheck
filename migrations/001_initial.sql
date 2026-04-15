@@ -47,7 +47,7 @@ CREATE INDEX IF NOT EXISTS movies_embedding_cosine_idx
 -- ──────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS saved_searches (
     id              SERIAL PRIMARY KEY,
-    name            TEXT     NOT NULL,         -- e.g. "The Grime"
+    name            TEXT     NOT NULL UNIQUE,  -- e.g. "The Grime"
     raw_query       TEXT     NOT NULL,         -- original user input
     expanded_query  TEXT,                      -- LLM-expanded terms (stored for re-use)
     -- The centroid embedding of this search (recomputed on save)

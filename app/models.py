@@ -8,7 +8,7 @@ from typing import Optional
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     ARRAY,
-    JSON,
+    JSONB,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -44,7 +44,7 @@ class Movie(Base):
     poster_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # AI vibe profile
-    vibe_profile: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    vibe_profile: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
     # pgvector embedding
     embedding: Mapped[Optional[list[float]]] = mapped_column(
@@ -71,7 +71,7 @@ class SavedSearch(Base):
     __tablename__ = "saved_searches"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     raw_query: Mapped[str] = mapped_column(Text, nullable=False)
     expanded_query: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     embedding: Mapped[Optional[list[float]]] = mapped_column(

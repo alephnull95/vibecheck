@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     # ── Search tuning ────────────────────────────────
     # Minimum local vector results before triggering TMDB discovery
     discovery_threshold: int = 5
-    # pgvector cosine similarity cutoff (0 = identical, 2 = opposite)
+    # pgvector cosine distance cutoff (0 = identical, 2 = opposite)
     vector_distance_cutoff: float = 0.55
 
     # ── Few-shot feedback ────────────────────────────
