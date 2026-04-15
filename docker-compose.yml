@@ -1,0 +1,129 @@
+version: "3.9"
+
+services:
+  # ──────────────────────────────────────────────
+  # PostgreSQL + pgvector
+  # ──────────────────────────────────────────────
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: vibecheck-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - /volume1/docker/vibecheck/migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ──────────────────────────────────────────────
+  # Redis (Celery broker + result backend)
+  # ──────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: vibecheck-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ──────────────────────────────────────────────
+  # FastAPI application
+  # ──────────────────────────────────────────────
+  api:
+    image: vibecheck:latest
+    container_name: vibecheck-api
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ──────────────────────────────────────────────
+  # Celery worker (ingestion / AI profiling)
+  # ──────────────────────────────────────────────
+  worker:
+    image: vibecheck:latest
+    container_name: vibecheck-worker
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=4 -Q default,ingestion
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ──────────────────────────────────────────────
+  # Celery Beat – scheduled task dispatcher
+  # Runs nightly Radarr sync (3 AM UTC) and
+  # Plex collection refresh (4 AM UTC).
+  # ──────────────────────────────────────────────
+  celery-beat:
+    image: vibecheck:latest
+    container_name: vibecheck-beat
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ──────────────────────────────────────────────
+  # Flower – Celery monitoring UI  (optional)
+  # ──────────────────────────────────────────────
+  flower:
+    image: vibecheck:latest
+    container_name: vibecheck-flower
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - worker
+
+  # ──────────────────────────────────────────────
+  # Bootstrap – runs once to trigger initial sync
+  # Waits for the API to be ready, then fires
+  # POST /api/v1/sync/radarr and exits.
+  # Remove this service after the first run if
+  # you don't want it to re-trigger on restarts.
+  # ──────────────────────────────────────────────
+  bootstrap:
+    image: curlimages/curl:8.7.1
+    container_name: vibecheck-bootstrap
+    restart: "no"
+    entrypoint: >
+      sh -c "
+        echo 'Waiting for VibeCheck API…';
+        until curl -sf http://api:8000/health > /dev/null; do
+          echo '  API not ready, retrying in 5s…';
+          sleep 5;
+        done;
+        echo 'API is up. Triggering initial Radarr sync…';
+        RESULT=$$(curl -sf -X POST http://api:8000/api/v1/sync/radarr);
+        echo \"Sync enqueued: $$RESULT\";
+        echo 'Bootstrap complete. Monitor progress at http://localhost:5555';
+      "
+    depends_on:
+      - api
+      - worker
+
+volumes:
+  postgres_data:
