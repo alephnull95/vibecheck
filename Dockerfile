@@ -1,20 +1,25 @@
-# Use a stable Node image
-FROM node:18-slim
+# Use Python base image
+FROM python:3.9-slim
 
-# Set the working directory inside the container
+# Set working directory
 WORKDIR /app
 
-# Copy package files first to take advantage of Docker caching
-COPY package*.json ./
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
-RUN npm install --production
+# Copy requirements and install
+# Note: If you don't have a requirements.txt, we'll need to create one
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of your application code
+# Copy the rest of the app
 COPY . .
 
-# Match the port in your docker-compose
+# Expose the Flask port
 EXPOSE 5000
 
-# Start the application
-CMD ["node", "index.js"]
+# Run the application
+# Change 'app.py' to whatever your main python file is named (e.g., main.py)
+CMD ["python", "app.py"]
