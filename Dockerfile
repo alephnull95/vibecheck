@@ -22,4 +22,4 @@ EXPOSE 5000
 
 # Run the application
 # Change 'app.py' to whatever your main python file is named (e.g., main.py)
-CMD ["python", "app/main.py"]
+CMD ["python", "main.py"]
