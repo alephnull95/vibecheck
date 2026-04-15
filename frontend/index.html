@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VibeCheck</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { brand: '#7c3aed' }
+        }
+      }
+    }
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .line-clamp-2 { overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+    .line-clamp-1 { overflow:hidden; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; }
+    body { background-color: #030712; }
+  </style>
+</head>
+<body class="text-gray-100 min-h-screen" x-data="app()" x-cloak>
+
+  <!-- ── Header ─────────────────────────────────────────────────────── -->
+  <header class="border-b border-gray-800 px-6 py-4 flex items-center gap-8 sticky top-0 bg-gray-950/90 backdrop-blur z-40">
+    <div class="flex items-center gap-2 shrink-0">
+      <span class="text-xl">🎬</span>
+      <span class="text-lg font-bold text-violet-400 tracking-tight">VibeCheck</span>
+    </div>
+    <nav class="flex gap-1">
+      <button @click="tab='search'"
+        :class="tab==='search' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white'"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors">Search</button>
+      <button @click="tab='vibes'; loadVibes()"
+        :class="tab==='vibes' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white'"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors">My Vibes</button>
+      <button @click="tab='tuner'; loadFeedback()"
+        :class="tab==='tuner' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white'"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors">Tuner</button>
+    </nav>
+  </header>
+
+  <!-- ── Search Tab ─────────────────────────────────────────────────── -->
+  <main class="max-w-7xl mx-auto px-6 py-8" x-show="tab==='search'">
+
+    <!-- Search form -->
+    <form @submit.prevent="search()" class="mb-8 space-y-3">
+      <div class="flex gap-3">
+        <input x-model="query" type="text"
+          placeholder="describe a vibe… e.g. 'gritty industrial despair with moral collapse'"
+          class="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-sm" />
+        <button type="submit" :disabled="loading || !query.trim()"
+          class="px-6 py-3 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-semibold text-sm transition-colors whitespace-nowrap">
+          <span x-show="!loading">Search</span>
+          <span x-show="loading" class="flex items-center gap-2">
+            <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+            </svg>Thinking…
+          </span>
+        </button>
+      </div>
+      <!-- Save as + status row -->
+      <div class="flex items-center gap-3">
+        <input x-model="saveAs" type="text" placeholder="save vibe as… (optional name)"
+          class="w-60 bg-gray-900 border border-gray-700 rounded-xl px-4 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-sm" />
+        <p x-show="expandedQuery" class="text-xs text-gray-500 italic line-clamp-1 flex-1"
+          x-text="'AI expanded: ' + expandedQuery"></p>
+        <p x-show="savedSearchId" class="text-xs text-violet-400 shrink-0">✓ Vibe saved &amp; Plex collection pushed</p>
+      </div>
+    </form>
+
+    <!-- Results -->
+    <template x-if="results">
+      <div>
+        <!-- Local matches -->
+        <div x-show="results.local_matches.length > 0" class="mb-10">
+          <div class="flex items-baseline gap-3 mb-4">
+            <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-widest">In Your Library</h2>
+            <span class="text-violet-400 font-bold" x-text="results.local_matches.length + ' matches'"></span>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <template x-for="match in results.local_matches" :key="match.movie.id">
+              <div class="bg-gray-900 rounded-xl overflow-hidden flex flex-col">
+                <div class="relative aspect-[2/3] bg-gray-800 shrink-0">
+                  <img x-show="match.movie.poster_path" :src="match.movie.poster_path" :alt="match.movie.title"
+                    class="w-full h-full object-cover" @error="$el.style.display='none'" />
+                  <div x-show="!match.movie.poster_path"
+                    class="w-full h-full flex items-center justify-center text-gray-600 text-4xl">🎬</div>
+                  <span class="absolute top-2 right-2 bg-black/70 text-violet-300 text-xs font-bold px-2 py-0.5 rounded-full"
+                    x-text="Math.round(match.similarity * 100) + '%'"></span>
+                </div>
+                <div class="p-3 flex flex-col flex-1">
+                  <p class="font-medium text-xs leading-snug line-clamp-2 mb-0.5" x-text="match.movie.title"></p>
+                  <p class="text-xs text-gray-500" x-text="match.movie.year"></p>
+                  <div class="flex gap-1.5 mt-auto pt-3">
+                    <button @click="sendFeedback(match.movie.id, 1, match.movie.title)"
+                      :class="feedbackMap[match.movie.id] === 1 ? 'bg-green-500/20 text-green-400' : 'text-gray-600 hover:text-green-400 hover:bg-green-400/10'"
+                      class="flex-1 py-1.5 rounded-lg text-sm transition-colors" title="Like">👍</button>
+                    <button @click="sendFeedback(match.movie.id, -1, match.movie.title)"
+                      :class="feedbackMap[match.movie.id] === -1 ? 'bg-red-500/20 text-red-400' : 'text-gray-600 hover:text-red-400 hover:bg-red-400/10'"
+                      class="flex-1 py-1.5 rounded-lg text-sm transition-colors" title="Dislike">👎</button>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Discovery matches -->
+        <div x-show="results.discovery_matches.length > 0">
+          <div class="flex items-baseline gap-3 mb-4">
+            <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-widest">Discover</h2>
+            <span class="text-amber-400 font-bold">Not in your library</span>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <template x-for="movie in results.discovery_matches" :key="movie.tmdb_id">
+              <div class="bg-gray-900 rounded-xl overflow-hidden flex flex-col border border-amber-900/30">
+                <div class="relative aspect-[2/3] bg-gray-800 shrink-0">
+                  <img x-show="movie.poster_path" :src="movie.poster_path" :alt="movie.title"
+                    class="w-full h-full object-cover" @error="$el.style.display='none'" />
+                  <div x-show="!movie.poster_path"
+                    class="w-full h-full flex items-center justify-center text-gray-600 text-4xl">🎬</div>
+                  <span class="absolute top-2 left-2 bg-amber-500/80 text-black text-xs font-bold px-2 py-0.5 rounded-full">NEW</span>
+                </div>
+                <div class="p-3 flex flex-col flex-1">
+                  <p class="font-medium text-xs leading-snug line-clamp-2 mb-0.5" x-text="movie.title"></p>
+                  <p class="text-xs text-gray-500" x-text="movie.year"></p>
+                  <a x-show="movie.overseerr_request_url" :href="movie.overseerr_request_url" target="_blank" rel="noopener"
+                    class="mt-auto pt-3 block text-center text-xs font-semibold py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 rounded-lg transition-colors">
+                    Request →
+                  </a>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div x-show="results.local_matches.length === 0 && results.discovery_matches.length === 0"
+          class="text-center text-gray-500 py-24">
+          <p class="text-5xl mb-4">🔭</p>
+          <p class="text-sm">No matches found. Try rephrasing, or wait for more movies to finish indexing.</p>
+        </div>
+      </div>
+    </template>
+  </main>
+
+  <!-- ── My Vibes Tab ───────────────────────────────────────────────── -->
+  <main class="max-w-4xl mx-auto px-6 py-8" x-show="tab==='vibes'">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-lg font-bold">Saved Vibes &amp; Plex Collections</h1>
+      <button @click="loadVibes()" class="text-xs text-gray-500 hover:text-gray-300 transition-colors">↺ Refresh</button>
+    </div>
+
+    <div x-show="vibes.length === 0" class="text-center text-gray-500 py-24">
+      <p class="text-5xl mb-4">🗂️</p>
+      <p class="text-sm">No saved vibes yet. Run a search and give it a name.</p>
+    </div>
+
+    <div class="space-y-3">
+      <template x-for="vibe in vibes" :key="vibe.id">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4 flex items-center gap-4">
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold text-violet-300 text-sm" x-text="vibe.name"></p>
+            <p class="text-xs text-gray-400 truncate mt-0.5" x-text="vibe.raw_query"></p>
+            <p class="text-xs text-gray-600 mt-1" x-text="new Date(vibe.created_at).toLocaleDateString(undefined, {dateStyle:'medium'})"></p>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <span x-show="vibe.plex_collection_id"
+              class="text-xs text-green-400 bg-green-400/10 px-2.5 py-1 rounded-full">✓ In Plex</span>
+            <span x-show="!vibe.plex_collection_id"
+              class="text-xs text-gray-500 bg-gray-800 px-2.5 py-1 rounded-full">Not pushed</span>
+            <button @click="pushCollection(vibe.id)" :disabled="pushingId === vibe.id"
+              class="px-3 py-1.5 bg-violet-600/80 hover:bg-violet-600 disabled:opacity-50 rounded-lg text-xs font-semibold transition-colors"
+              x-text="pushingId === vibe.id ? 'Pushing…' : 'Push to Plex'"></button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </main>
+
+  <!-- ── Tuner Tab ──────────────────────────────────────────────────── -->
+  <main class="max-w-3xl mx-auto px-6 py-8" x-show="tab==='tuner'">
+    <h1 class="text-lg font-bold mb-1">Feedback Tuner</h1>
+    <p class="text-sm text-gray-400 mb-6">
+      Your 👍 picks are injected as few-shot examples into the AI Query Expander,
+      calibrating future searches to your taste.
+    </p>
+
+    <div class="flex gap-2 mb-6">
+      <button @click="tunerFilter='all'"
+        :class="tunerFilter==='all' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'"
+        class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">All</button>
+      <button @click="tunerFilter=1"
+        :class="tunerFilter===1 ? 'bg-green-700/80 text-white' : 'text-gray-400 hover:text-white'"
+        class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">👍 Liked</button>
+      <button @click="tunerFilter=-1"
+        :class="tunerFilter===-1 ? 'bg-red-700/80 text-white' : 'text-gray-400 hover:text-white'"
+        class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">👎 Disliked</button>
+    </div>
+
+    <div x-show="filteredFeedback.length === 0" class="text-center text-gray-500 py-24">
+      <p class="text-5xl mb-4">🌱</p>
+      <p class="text-sm">No feedback yet. Rate movies in search results to train the engine.</p>
+    </div>
+
+    <div class="space-y-2">
+      <template x-for="fb in filteredFeedback" :key="fb.id">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 flex items-center gap-3">
+          <span x-text="fb.rating === 1 ? '👍' : '👎'" class="text-xl w-7 shrink-0"></span>
+          <div class="flex-1 min-w-0">
+            <p class="font-medium text-sm truncate" x-text="fb.movie_title || ('Movie #' + fb.movie_id)"></p>
+            <p class="text-xs text-gray-500 mt-0.5" x-text="fb.movie_year ? fb.movie_year + ' · ' : ''"
+              x-show="fb.movie_year"></p>
+            <p class="text-xs text-gray-600"
+              x-text="new Date(fb.created_at).toLocaleDateString(undefined, {dateStyle:'medium'})"></p>
+          </div>
+          <button @click="deleteFeedback(fb.id)"
+            class="text-gray-600 hover:text-red-400 transition-colors px-2 text-lg" title="Remove">×</button>
+        </div>
+      </template>
+    </div>
+  </main>
+
+  <!-- ── Toast notifications ────────────────────────────────────────── -->
+  <div class="fixed bottom-5 right-5 flex flex-col gap-2 z-50 max-w-sm w-full pointer-events-none">
+    <template x-for="toast in toasts" :key="toast.id">
+      <div x-show="toast.visible" x-transition
+        :class="toast.type === 'error' ? 'bg-red-950 border-red-800 text-red-300' : 'bg-gray-900 border-gray-700 text-gray-100'"
+        class="border rounded-xl px-4 py-3 text-sm shadow-2xl pointer-events-auto"
+        x-text="toast.message"></div>
+    </template>
+  </div>
+
+  <script>
+    function app() {
+      return {
+        tab: 'search',
+        query: '',
+        saveAs: '',
+        loading: false,
+        results: null,
+        expandedQuery: '',
+        savedSearchId: null,
+        feedbackMap: {},   // movie_id → rating (for button state)
+        vibes: [],
+        pushingId: null,
+        feedbackList: [],
+        tunerFilter: 'all',
+        toasts: [],
+
+        get filteredFeedback() {
+          if (this.tunerFilter === 'all') return this.feedbackList;
+          return this.feedbackList.filter(f => f.rating === this.tunerFilter);
+        },
+
+        async search() {
+          if (!this.query.trim()) return;
+          this.loading = true;
+          this.results = null;
+          this.expandedQuery = '';
+          this.savedSearchId = null;
+          try {
+            const body = { query: this.query, limit: 20 };
+            if (this.saveAs.trim()) body.save_as = this.saveAs.trim();
+            const res = await fetch('/api/v1/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+            if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+            const data = await res.json();
+            this.results = data;
+            this.expandedQuery = data.expanded_query;
+            this.savedSearchId = data.saved_search_id;
+          } catch (e) {
+            this.toast('Search failed: ' + e.message, 'error');
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        async sendFeedback(movieId, rating, title) {
+          const prev = this.feedbackMap[movieId];
+          this.feedbackMap[movieId] = rating;
+          try {
+            const res = await fetch('/api/v1/feedback', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                movie_id: movieId,
+                search_id: this.savedSearchId || null,
+                rating,
+              }),
+            });
+            if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+            this.toast(rating === 1
+              ? `👍 Liked "${title}" — will shape future searches`
+              : `👎 Noted`);
+          } catch (e) {
+            this.feedbackMap[movieId] = prev;
+            this.toast('Could not save feedback: ' + e.message, 'error');
+          }
+        },
+
+        async loadVibes() {
+          try {
+            const res = await fetch('/api/v1/collections');
+            if (!res.ok) throw new Error(res.statusText);
+            this.vibes = await res.json();
+          } catch (e) {
+            this.toast('Could not load vibes', 'error');
+          }
+        },
+
+        async pushCollection(searchId) {
+          this.pushingId = searchId;
+          try {
+            const res = await fetch('/api/v1/collections/push', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ saved_search_id: searchId }),
+            });
+            if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+            const data = await res.json();
+            this.toast(`✓ "${data.collection_title}" pushed to Plex (${data.movie_count} films)`);
+            await this.loadVibes();
+          } catch (e) {
+            this.toast('Push failed: ' + e.message, 'error');
+          } finally {
+            this.pushingId = null;
+          }
+        },
+
+        async loadFeedback() {
+          try {
+            const res = await fetch('/api/v1/feedback');
+            if (!res.ok) throw new Error(res.statusText);
+            this.feedbackList = await res.json();
+          } catch (e) {
+            this.toast('Could not load feedback', 'error');
+          }
+        },
+
+        async deleteFeedback(id) {
+          try {
+            const res = await fetch(`/api/v1/feedback/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error(res.statusText);
+            this.feedbackList = this.feedbackList.filter(f => f.id !== id);
+          } catch (e) {
+            this.toast('Delete failed: ' + e.message, 'error');
+          }
+        },
+
+        toast(message, type = 'info') {
+          const id = Date.now();
+          this.toasts.push({ id, message, type, visible: true });
+          setTimeout(() => {
+            const t = this.toasts.find(t => t.id === id);
+            if (t) t.visible = false;
+            setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, 400);
+          }, 3500);
+        },
+      };
+    }
+  </script>
+</body>
+</html>
