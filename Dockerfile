@@ -1,16 +1,20 @@
-FROM python:3.12-slim
+# Use a stable Node image
+FROM node:18-slim
 
+# Set the working directory inside the container
 WORKDIR /app
 
-# System deps required by psycopg2
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Copy package files first to take advantage of Docker caching
+COPY package*.json ./
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies
+RUN npm install --production
 
+# Copy the rest of your application code
 COPY . .
 
-ENV PYTHONPATH=/app
+# Match the port in your docker-compose
+EXPOSE 5000
+
+# Start the application
+CMD ["node", "index.js"]
