@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VibeCheck – Setup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { colors: { brand: '#7c3aed' } } } }
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    body { background-color: #030712; }
+    .lbl { display:block; font-size:.75rem; font-weight:500; color:#9ca3af; margin-bottom:.375rem; }
+    .inp {
+      width:100%; background:#1f2937; border:1px solid #374151;
+      border-radius:.5rem; padding:.5rem .75rem; font-size:.875rem;
+      color:#f3f4f6; transition:border-color .15s,box-shadow .15s;
+    }
+    .inp:focus { outline:none; border-color:#7c3aed; box-shadow:0 0 0 1px #7c3aed; }
+    .inp::placeholder { color:#4b5563; }
+    select.inp { cursor:pointer; }
+  </style>
+</head>
+<body class="text-gray-100 min-h-screen" x-data="setup()" x-cloak x-init="load()">
+
+  <!-- Header -->
+  <header class="border-b border-gray-800 px-6 py-4 flex items-center gap-4 sticky top-0 bg-gray-950/90 backdrop-blur z-40">
+    <a href="/ui/index.html" class="flex items-center gap-2 shrink-0 hover:opacity-75 transition-opacity">
+      <span class="text-xl">🎬</span>
+      <span class="text-lg font-bold text-violet-400 tracking-tight">VibeCheck</span>
+    </a>
+    <span class="text-gray-700">/</span>
+    <span class="text-gray-300 font-medium text-sm">Setup</span>
+    <div class="flex-1"></div>
+    <a href="/ui/index.html" class="text-sm text-gray-400 hover:text-white transition-colors">← Back to app</a>
+  </header>
+
+  <!-- Toast -->
+  <div x-show="toast" x-transition.opacity
+    class="fixed bottom-6 right-6 bg-gray-800 border border-gray-700 rounded-xl px-5 py-3 text-sm shadow-2xl z-50 flex items-center gap-3">
+    <span x-text="toastMsg"></span>
+    <button @click="toast=false" class="text-gray-500 hover:text-white ml-1">✕</button>
+  </div>
+
+  <main class="max-w-2xl mx-auto px-6 py-10 space-y-5">
+
+    <!-- Status banner -->
+    <div x-show="loaded && !status.is_configured"
+      class="flex items-start gap-3 bg-yellow-900/30 border border-yellow-700/40 rounded-xl px-4 py-3 text-sm text-yellow-300">
+      <span class="text-base mt-0.5">⚠️</span>
+      <div>
+        <p class="font-semibold">Setup required</p>
+        <p class="text-yellow-400/70 mt-0.5">Fill in your API keys and service URLs below, then click Save.</p>
+      </div>
+    </div>
+    <div x-show="loaded && status.is_configured"
+      class="flex items-center gap-2 bg-emerald-900/30 border border-emerald-700/40 rounded-xl px-4 py-3 text-sm text-emerald-300">
+      <span>✅</span> All required services are configured.
+    </div>
+
+    <form @submit.prevent="save()" class="space-y-5">
+
+      <!-- ── LLM ── -->
+      <div class="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+          <h2 class="font-semibold text-sm">🤖 AI / LLM Provider</h2>
+          <span x-html="badge('openai_api_key', 'gemini_api_key')"></span>
+        </div>
+        <div class="p-5 space-y-4">
+          <div>
+            <label class="lbl">Provider</label>
+            <select x-model="form.llm_provider" class="inp">
+              <option value="openai">OpenAI (GPT-4o-mini)</option>
+              <option value="gemini">Google Gemini 1.5 Flash</option>
+            </select>
+          </div>
+          <div x-show="form.llm_provider === 'openai' || !form.llm_provider">
+            <label class="lbl">OpenAI API Key</label>
+            <input x-model="form.openai_api_key" type="password" autocomplete="new-password"
+              :placeholder="status.openai_api_key?.has_value ? 'Already configured – leave blank to keep' : 'sk-…'"
+              class="inp" />
+          </div>
+          <div x-show="form.llm_provider === 'gemini'">
+            <label class="lbl">Gemini API Key</label>
+            <input x-model="form.gemini_api_key" type="password" autocomplete="new-password"
+              :placeholder="status.gemini_api_key?.has_value ? 'Already configured – leave blank to keep' : 'AI…'"
+              class="inp" />
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="lbl">OpenAI Chat Model</label>
+              <input x-model="form.openai_chat_model" type="text" placeholder="gpt-4o-mini" class="inp" />
+            </div>
+            <div>
+              <label class="lbl">Gemini Chat Model</label>
+              <input x-model="form.gemini_chat_model" type="text" placeholder="gemini-1.5-flash" class="inp" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Radarr ── -->
+      <div class="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+          <h2 class="font-semibold text-sm">📽️ Radarr</h2>
+          <span x-html="badge('radarr_url')"></span>
+        </div>
+        <div class="p-5 space-y-4">
+          <div>
+            <label class="lbl">Radarr URL</label>
+            <input x-model="form.radarr_url" type="url" placeholder="http://192.168.1.x:7878" class="inp" />
+          </div>
+          <div>
+            <label class="lbl">Radarr API Key</label>
+            <input x-model="form.radarr_api_key" type="password" autocomplete="new-password"
+              :placeholder="status.radarr_api_key?.has_value ? 'Already configured – leave blank to keep' : ''"
+              class="inp" />
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Plex ── -->
+      <div class="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+          <h2 class="font-semibold text-sm">🎬 Plex</h2>
+          <span x-html="badge('plex_url')"></span>
+        </div>
+        <div class="p-5 space-y-4">
+          <div>
+            <label class="lbl">Plex URL</label>
+            <input x-model="form.plex_url" type="url" placeholder="http://192.168.1.x:32400" class="inp" />
+          </div>
+          <div>
+            <label class="lbl">Plex Token <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank" rel="noopener" class="text-violet-400 hover:underline text-xs ml-1">How to find →</a></label>
+            <input x-model="form.plex_token" type="password" autocomplete="new-password"
+              :placeholder="status.plex_token?.has_value ? 'Already configured – leave blank to keep' : ''"
+              class="inp" />
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TMDB ── -->
+      <div class="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+          <h2 class="font-semibold text-sm">🎞️ TMDB</h2>
+          <span x-html="badge('tmdb_api_key')"></span>
+        </div>
+        <div class="p-5 space-y-4">
+          <div>
+            <label class="lbl">API Key (v3 auth)</label>
+            <input x-model="form.tmdb_api_key" type="password" autocomplete="new-password"
+              :placeholder="status.tmdb_api_key?.has_value ? 'Already configured – leave blank to keep' : ''"
+              class="inp" />
+          </div>
+          <div>
+            <label class="lbl">Read Access Token (v4 Bearer)</label>
+            <input x-model="form.tmdb_access_token" type="password" autocomplete="new-password"
+              :placeholder="status.tmdb_access_token?.has_value ? 'Already configured – leave blank to keep' : 'eyJ…'"
+              class="inp" />
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Overseerr ── -->
+      <div class="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+          <h2 class="font-semibold text-sm">🎫 Overseerr</h2>
+          <span x-html="badge('overseerr_url')"></span>
+        </div>
+        <div class="p-5 space-y-4">
+          <div>
+            <label class="lbl">Overseerr URL</label>
+            <input x-model="form.overseerr_url" type="url" placeholder="http://192.168.1.x:5055" class="inp" />
+          </div>
+          <div>
+            <label class="lbl">Overseerr API Key</label>
+            <input x-model="form.overseerr_api_key" type="password" autocomplete="new-password"
+              :placeholder="status.overseerr_api_key?.has_value ? 'Already configured – leave blank to keep' : ''"
+              class="inp" />
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Advanced ── -->
+      <div class="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-800">
+          <h2 class="font-semibold text-sm">⚙️ Advanced</h2>
+        </div>
+        <div class="p-5 grid grid-cols-2 gap-4">
+          <div>
+            <label class="lbl">Environment</label>
+            <select x-model="form.app_env" class="inp">
+              <option value="production">production</option>
+              <option value="development">development</option>
+            </select>
+          </div>
+          <div>
+            <label class="lbl">Log Level</label>
+            <select x-model="form.log_level" class="inp">
+              <option value="INFO">INFO</option>
+              <option value="DEBUG">DEBUG</option>
+              <option value="WARNING">WARNING</option>
+              <option value="ERROR">ERROR</option>
+            </select>
+          </div>
+          <div>
+            <label class="lbl">Discovery Threshold <span class="text-gray-600 font-normal">(default 5)</span></label>
+            <input x-model="form.discovery_threshold" type="number" min="1" max="50" class="inp" />
+          </div>
+          <div>
+            <label class="lbl">Vector Distance Cutoff <span class="text-gray-600 font-normal">(default 0.55)</span></label>
+            <input x-model="form.vector_distance_cutoff" type="number" step="0.05" min="0" max="2" class="inp" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Save -->
+      <div class="flex items-center justify-between pt-1">
+        <p class="text-xs text-gray-600">
+          Infrastructure vars (DB, Redis, Secret Key) are set in Portainer and cannot be changed here.
+        </p>
+        <div class="flex items-center gap-3 shrink-0">
+          <p x-show="saveError" class="text-sm text-red-400" x-text="saveError"></p>
+          <button type="submit" :disabled="saving"
+            class="px-6 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-semibold text-sm transition-colors min-w-36">
+            <span x-show="!saving">Save Configuration</span>
+            <span x-show="saving" class="flex items-center gap-2 justify-center">
+              <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg> Saving…
+            </span>
+          </button>
+        </div>
+      </div>
+
+    </form>
+  </main>
+
+  <script>
+  function setup() {
+    return {
+      status: {},
+      loaded: false,
+      form: {
+        llm_provider: 'openai',
+        openai_api_key: '', gemini_api_key: '',
+        openai_chat_model: '', gemini_chat_model: '',
+        radarr_url: '', radarr_api_key: '',
+        plex_url: '', plex_token: '',
+        tmdb_api_key: '', tmdb_access_token: '',
+        overseerr_url: '', overseerr_api_key: '',
+        app_env: 'production', log_level: 'INFO',
+        discovery_threshold: 5, vector_distance_cutoff: 0.55,
+      },
+      saving: false,
+      toast: false, toastMsg: '',
+      saveError: '',
+
+      async load() {
+        try {
+          const r = await fetch('/api/v1/setup');
+          this.status = await r.json();
+          // Pre-fill non-sensitive visible fields
+          const nonSensitive = [
+            'llm_provider','openai_chat_model','gemini_chat_model',
+            'radarr_url','plex_url','overseerr_url',
+            'app_env','log_level','discovery_threshold','vector_distance_cutoff',
+          ];
+          for (const k of nonSensitive) {
+            if (this.status[k]?.value) this.form[k] = this.status[k].value;
+          }
+          this.loaded = true;
+        } catch(e) {
+          console.error('Failed to load config', e);
+          this.loaded = true;
+        }
+      },
+
+      badge(...keys) {
+        const allSet = keys.every(k => this.status[k]?.has_value);
+        const anySet = keys.some(k => this.status[k]?.has_value);
+        if (allSet || (keys.length === 1 && anySet)) {
+          return '<span class="text-xs font-medium text-emerald-400 bg-emerald-900/40 border border-emerald-800/50 px-2 py-0.5 rounded-full">✓ configured</span>';
+        }
+        return '<span class="text-xs font-medium text-yellow-400 bg-yellow-900/40 border border-yellow-800/50 px-2 py-0.5 rounded-full">not set</span>';
+      },
+
+      async save() {
+        this.saving = true;
+        this.saveError = '';
+        try {
+          const r = await fetch('/api/v1/setup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ settings: this.form }),
+          });
+          if (!r.ok) {
+            const err = await r.json().catch(() => ({}));
+            this.saveError = err.detail || 'Save failed';
+            return;
+          }
+          await this.load();
+          this.toastMsg = '✅ Configuration saved!';
+          this.toast = true;
+          setTimeout(() => this.toast = false, 4000);
+        } catch(e) {
+          this.saveError = 'Network error – see console.';
+          console.error(e);
+        } finally {
+          this.saving = false;
+        }
+      },
+    }
+  }
+  </script>
+
+</body>
+</html>

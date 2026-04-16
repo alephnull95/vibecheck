@@ -3,25 +3,31 @@ version: "3.9"
 # ── Shared app environment ────────────────────────────────────────────────────
 # All ${VAR} values are supplied via Portainer's "Environment variables" UI.
 # See .env.example for the full list of required variables.
+# ── Minimum required in Portainer: SECRET_KEY, DATABASE_URL, POSTGRES_* ─────
+# Everything else (API keys, service URLs) can be set via the /setup UI and
+# will be persisted on the vibecheck_config volume at /config/settings.env.
+# If you prefer to supply ALL values via Portainer, you can do so — env vars
+# always take priority over the config file.
 x-app-env: &app-env
-  APP_ENV: ${APP_ENV:-production}
   SECRET_KEY: ${SECRET_KEY}
-  LOG_LEVEL: ${LOG_LEVEL:-INFO}
   DATABASE_URL: ${DATABASE_URL}
   REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
   CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
   CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
-  RADARR_URL: ${RADARR_URL}
-  RADARR_API_KEY: ${RADARR_API_KEY}
-  PLEX_URL: ${PLEX_URL}
-  PLEX_TOKEN: ${PLEX_TOKEN}
-  TMDB_API_KEY: ${TMDB_API_KEY}
-  TMDB_ACCESS_TOKEN: ${TMDB_ACCESS_TOKEN}
-  LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+  # Optional overrides – leave blank to configure via /ui/setup.html instead
+  APP_ENV: ${APP_ENV:-}
+  LOG_LEVEL: ${LOG_LEVEL:-}
+  RADARR_URL: ${RADARR_URL:-}
+  RADARR_API_KEY: ${RADARR_API_KEY:-}
+  PLEX_URL: ${PLEX_URL:-}
+  PLEX_TOKEN: ${PLEX_TOKEN:-}
+  TMDB_API_KEY: ${TMDB_API_KEY:-}
+  TMDB_ACCESS_TOKEN: ${TMDB_ACCESS_TOKEN:-}
+  LLM_PROVIDER: ${LLM_PROVIDER:-}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-  OVERSEERR_URL: ${OVERSEERR_URL}
-  OVERSEERR_API_KEY: ${OVERSEERR_API_KEY}
+  OVERSEERR_URL: ${OVERSEERR_URL:-}
+  OVERSEERR_API_KEY: ${OVERSEERR_API_KEY:-}
 
 services:
   # ──────────────────────────────────────────────
@@ -71,6 +77,8 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     environment:
       <<: *app-env
+    volumes:
+      - vibecheck_config:/config
     ports:
       - "8000:8000"
     depends_on:
@@ -89,6 +97,8 @@ services:
     command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=4 -Q default,ingestion
     environment:
       <<: *app-env
+    volumes:
+      - vibecheck_config:/config
     depends_on:
       db:
         condition: service_healthy
@@ -107,6 +117,8 @@ services:
     command: celery -A app.workers.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
     environment:
       <<: *app-env
+    volumes:
+      - vibecheck_config:/config
     depends_on:
       db:
         condition: service_healthy
@@ -123,6 +135,8 @@ services:
     command: celery -A app.workers.celery_app flower --port=5555
     environment:
       <<: *app-env
+    volumes:
+      - vibecheck_config:/config
     ports:
       - "5555:5555"
     depends_on:
@@ -158,3 +172,4 @@ services:
 
 volumes:
   postgres_data:
+  vibecheck_config:  # Persists /config/settings.env written by the setup UI

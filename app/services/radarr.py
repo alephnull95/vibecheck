@@ -13,15 +13,18 @@ import structlog
 from app.config import get_settings
 
 logger = structlog.get_logger(__name__)
-settings = get_settings()
-
-_BASE = str(settings.radarr_url).rstrip("/")
-_HEADERS = {"X-Api-Key": settings.radarr_api_key}
 _TIMEOUT = 30.0
 
 
 def _client() -> httpx.Client:
-    return httpx.Client(base_url=_BASE, headers=_HEADERS, timeout=_TIMEOUT)
+    s = get_settings()
+    if not s.radarr_url:
+        raise RuntimeError("RADARR_URL is not configured. Visit /ui/setup.html to configure it.")
+    return httpx.Client(
+        base_url=s.radarr_url.rstrip("/"),
+        headers={"X-Api-Key": s.radarr_api_key},
+        timeout=_TIMEOUT,
+    )
 
 
 def get_all_movies() -> list[dict[str, Any]]:

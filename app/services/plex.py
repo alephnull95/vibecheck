@@ -16,11 +16,13 @@ from plexapi.server import PlexServer
 from app.config import get_settings
 
 logger = structlog.get_logger(__name__)
-settings = get_settings()
 
 
 def _server() -> PlexServer:
-    return PlexServer(str(settings.plex_url), settings.plex_token)
+    s = get_settings()
+    if not s.plex_url:
+        raise RuntimeError("PLEX_URL is not configured. Visit /ui/setup.html to configure it.")
+    return PlexServer(s.plex_url, s.plex_token)
 
 
 def _movie_section(plex: PlexServer):

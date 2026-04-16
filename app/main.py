@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 
 from app.config import get_settings
-from app.api.routes import collections, feedback, search, sync, webhooks
+from app.api.routes import collections, feedback, search, setup, sync, webhooks
 
 logger = structlog.get_logger(__name__)
 settings = get_settings()
@@ -39,6 +39,7 @@ def create_app() -> FastAPI:
     app.include_router(collections.router, prefix="/api/v1", tags=["Collections"])
     app.include_router(feedback.router, prefix="/api/v1", tags=["Feedback"])
     app.include_router(webhooks.router, prefix="/api/v1", tags=["Webhooks"])
+    app.include_router(setup.router, prefix="/api/v1", tags=["Setup"])
 
     # ── Health ────────────────────────────────────────────────────────────────
     @app.get("/health", tags=["Health"])

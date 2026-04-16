@@ -17,19 +17,18 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from app.config import get_settings
 
 logger = structlog.get_logger(__name__)
-settings = get_settings()
 
 # ── Lazy client initialisation ───────────────────────────────────────────────
 
 
 def _openai_client():
     import openai  # noqa: PLC0415
-    return openai.OpenAI(api_key=settings.openai_api_key)
+    return openai.OpenAI(api_key=get_settings().openai_api_key)
 
 
 def _gemini_model(model_name: str):
     import google.generativeai as genai  # noqa: PLC0415
-    genai.configure(api_key=settings.gemini_api_key)
+    genai.configure(api_key=get_settings().gemini_api_key)
     return genai.GenerativeModel(model_name)
 
 
@@ -42,11 +41,12 @@ def embed_text(text: str) -> list[float]:
     text-embedding-3-small. Embeddings always use OpenAI regardless of the
     configured chat LLM provider.
     """
+    s = get_settings()
     client = _openai_client()
     response = client.embeddings.create(
-        model=settings.embedding_model,
+        model=s.embedding_model,
         input=text,
-        dimensions=settings.embedding_dimensions,
+        dimensions=s.embedding_dimensions,
     )
     return response.data[0].embedding
 
@@ -116,7 +116,7 @@ def expand_query(
         examples_text = "\n\n".join(
             f"Example {i + 1}:\nAtmosphere: {ex.get('atmosphere', '')}\n"
             f"Themes: {ex.get('themes', '')}\nMood: {ex.get('mood', '')}"
-            for i, ex in enumerate(liked_examples[:settings.feedback_few_shot_count])
+            for i, ex in enumerate(liked_examples[:get_settings().feedback_few_shot_count])
         )
         few_shot_block = (
             "\n\nThe user has previously liked films with these vibes. "
@@ -132,7 +132,7 @@ def expand_query(
 
 def _chat(system: str, user: str) -> str:
     """Dispatch to the configured LLM provider."""
-    if settings.llm_provider == "openai":
+    if get_settings().llm_provider == "openai":
         return _openai_chat(system, user)
     return _gemini_chat(system, user)
 
@@ -140,7 +140,7 @@ def _chat(system: str, user: str) -> str:
 def _openai_chat(system: str, user: str) -> str:
     client = _openai_client()
     response = client.chat.completions.create(
-        model=settings.openai_chat_model,
+        model=get_settings().openai_chat_model,
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": user},
@@ -152,7 +152,7 @@ def _openai_chat(system: str, user: str) -> str:
 
 
 def _gemini_chat(system: str, user: str) -> str:
-    model = _gemini_model(settings.gemini_chat_model)
+    model = _gemini_model(get_settings().gemini_chat_model)
     # Gemini doesn't have a separate system role in the basic API – prepend it.
     prompt = f"{system}\n\n{user}"
     response = model.generate_content(prompt)

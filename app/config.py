@@ -6,15 +6,18 @@ Copy .env.example to .env and fill in your keys before starting.
 """
 
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Optional
 
-from pydantic import AnyHttpUrl, Field, model_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # Primary source: os env vars (Portainer) always win.
+        # Secondary source: /config/settings.env written by the /setup UI,
+        # persisted on a Docker named volume (vibecheck_config).
+        env_file="/config/settings.env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -34,16 +37,16 @@ class Settings(BaseSettings):
     celery_result_backend: str = "redis://redis:6379/1"
 
     # ── Radarr ───────────────────────────────────────
-    radarr_url: AnyHttpUrl
-    radarr_api_key: str
+    radarr_url: Optional[str] = None
+    radarr_api_key: str = ""
 
     # ── Plex ─────────────────────────────────────────
-    plex_url: AnyHttpUrl
-    plex_token: str
+    plex_url: Optional[str] = None
+    plex_token: str = ""
 
     # ── TMDB ─────────────────────────────────────────
-    tmdb_api_key: str
-    tmdb_access_token: str  # Bearer token (Read Access Token)
+    tmdb_api_key: str = ""
+    tmdb_access_token: str = ""  # Bearer token (Read Access Token)
 
     # ── LLM ──────────────────────────────────────────
     llm_provider: Literal["openai", "gemini"] = "openai"
@@ -58,8 +61,8 @@ class Settings(BaseSettings):
     gemini_chat_model: str = "gemini-1.5-flash"
 
     # ── Overseerr ────────────────────────────────────
-    overseerr_url: AnyHttpUrl
-    overseerr_api_key: str
+    overseerr_url: Optional[str] = None
+    overseerr_api_key: str = ""
 
     # ── Search tuning ────────────────────────────────
     # Minimum local vector results before triggering TMDB discovery
@@ -71,16 +74,13 @@ class Settings(BaseSettings):
     # Number of liked examples to inject into query expansion prompts
     feedback_few_shot_count: int = 5
 
-    @model_validator(mode="after")
-    def _validate_llm_keys(self) -> "Settings":
-        if self.llm_provider == "openai" and not self.openai_api_key:
-            raise ValueError("OPENAI_API_KEY is required when LLM_PROVIDER=openai")
-        if self.llm_provider == "gemini" and not self.gemini_api_key:
-            raise ValueError("GEMINI_API_KEY is required when LLM_PROVIDER=gemini")
-        return self
-
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Return a cached singleton Settings instance."""
     return Settings()  # type: ignore[call-arg]
+
+
+def reset_settings() -> None:
+    """Clear the settings cache so the next call reloads from env + config file."""
+    get_settings.cache_clear()

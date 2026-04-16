@@ -14,19 +14,21 @@ import structlog
 from app.config import get_settings
 
 logger = structlog.get_logger(__name__)
-settings = get_settings()
-
 _BASE = "https://api.themoviedb.org/3"
 _POSTER_BASE = "https://image.tmdb.org/t/p/w500"
-_HEADERS = {
-    "Authorization": f"Bearer {settings.tmdb_access_token}",
-    "accept": "application/json",
-}
 _TIMEOUT = 15.0
 
 
 def _client() -> httpx.Client:
-    return httpx.Client(base_url=_BASE, headers=_HEADERS, timeout=_TIMEOUT)
+    s = get_settings()
+    return httpx.Client(
+        base_url=_BASE,
+        headers={
+            "Authorization": f"Bearer {s.tmdb_access_token}",
+            "accept": "application/json",
+        },
+        timeout=_TIMEOUT,
+    )
 
 
 def search_movies(query: str, page: int = 1) -> list[dict[str, Any]]:
