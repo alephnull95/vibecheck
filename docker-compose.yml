@@ -79,7 +79,7 @@ services:
     volumes:
       - vibecheck_config:/config
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8900}:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -137,7 +137,7 @@ services:
     volumes:
       - vibecheck_config:/config
     ports:
-      - "5555:5555"
+      - "${FLOWER_PORT:-8901}:5555"
     depends_on:
       - redis
       - worker
