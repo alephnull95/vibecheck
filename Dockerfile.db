@@ -1,0 +1,5 @@
+FROM pgvector/pgvector:pg16
+
+# Bake the initial schema directly into the image so no bind mount is needed.
+# Docker runs all scripts in /docker-entrypoint-initdb.d/ on first startup.
+COPY migrations/001_initial.sql /docker-entrypoint-initdb.d/001_initial.sql
